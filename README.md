@@ -1,4 +1,4 @@
-Searched codebase for "what is this project about main purpose features description", 27 results
+#CLONE THIS CODE AND RUN LOCALY BECASUE GITHUB PAGES DON'T WORK
 
 ## 📊 Project Overview: **RailGuard AI**
 
