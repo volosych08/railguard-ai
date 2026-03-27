@@ -1,7 +1,8 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { rawSensorData } from "@/lib/railguard/mockData";
 import { reconstruct, detect, analyzeSensorHealth } from "@/lib/railguard/engine";
-import { generateTrainRoutes } from "@/lib/railguard/stations";
+import { generateTrainRoutes, fetchLiveTrainRoutes } from "@/lib/railguard/stations";
+import { TrainRoute } from "@/lib/railguard/types";
 import Header from "@/components/railguard/Header";
 import StatsBar from "@/components/railguard/StatsBar";
 import SensorHealthBar from "@/components/railguard/SensorHealthBar";
@@ -10,10 +11,35 @@ import TrainList from "@/components/railguard/TrainList";
 import DetailPanel from "@/components/railguard/DetailPanel";
 
 export default function Index() {
+  const [routes, setRoutes] = useState<TrainRoute[]>([]);
+  const [isLoadingRoutes, setIsLoadingRoutes] = useState(true);
+
   const events = useMemo(() => reconstruct(rawSensorData), []);
   const anomalies = useMemo(() => detect(events), [events]);
   const sensors = useMemo(() => analyzeSensorHealth(rawSensorData), []);
-  const routes = useMemo(() => generateTrainRoutes(), []);
+
+  // Fetch live train routes on mount and periodically
+  useEffect(() => {
+    const loadRoutes = async () => {
+      setIsLoadingRoutes(true);
+      try {
+        const liveRoutes = await fetchLiveTrainRoutes();
+        setRoutes(liveRoutes);
+      } catch (error) {
+        // Fallback to mock data (handled in fetchLiveTrainRoutes)
+        setRoutes(generateTrainRoutes());
+      } finally {
+        setIsLoadingRoutes(false);
+      }
+    };
+
+    loadRoutes();
+
+    // Refresh routes every 30 seconds
+    const interval = setInterval(loadRoutes, 30000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
   const selectedRoute = routes.find((r) => r.id === selectedRouteId) || null;

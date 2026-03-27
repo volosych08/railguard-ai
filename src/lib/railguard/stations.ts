@@ -1,4 +1,5 @@
 import { Station, TrainRoute } from "./types";
+import { getTrainDepartures, calculateDelay } from "./nsApi";
 
 export const stations: Station[] = [
   { id: "ASD", name: "Amsterdam Centraal", lat: 52.3791, lng: 4.9003, city: "Amsterdam" },
@@ -26,8 +27,8 @@ export function getStation(id: string): Station {
   return stationMap.get(id) || stations[0];
 }
 
-// Simulated live train routes
-export function generateTrainRoutes(): TrainRoute[] {
+// Fallback mock train routes (used when API is unavailable)
+function getMockTrainRoutes(): TrainRoute[] {
   const now = Date.now();
   const routes: TrainRoute[] = [
     {
@@ -142,6 +143,139 @@ export function generateTrainRoutes(): TrainRoute[] {
     const lng = r.from.lng + (r.to.lng - r.from.lng) * r.progress;
     return { ...r, currentLat: lat, currentLng: lng };
   });
+}
+
+// Returns mock routes immediately (for backward compatibility)
+export function generateTrainRoutes(): TrainRoute[] {
+  return getMockTrainRoutes();
+}
+
+/**
+ * Fetch live train routes from NS API
+ * Maps train arrivals/departures from multiple stations to routes
+ * Falls back to mock data if API unavailable
+ */
+export async function fetchLiveTrainRoutes(): Promise<TrainRoute[]> {
+  // Check if API calls are disabled
+  const apiDisabled = import.meta.env.VITE_DISABLE_NS_API === "true";
+  
+  if (apiDisabled) {
+    console.log("ℹ Using mock train data (NS API disabled)");
+    return getMockTrainRoutes();
+  }
+
+  try {
+    // Fetch departures from major stations
+    const stationUicCodes = [
+      "8400058",  // Amsterdam Centraal
+    ];
+
+    const allDepartures = await Promise.all(
+      stationUicCodes.map(code => 
+        getTrainDepartures(code, { maxJourneys: 5 }).catch(() => [])
+      )
+    );
+
+    const routes: TrainRoute[] = [];
+
+    // Flatten and process departures into routes
+    for (const departures of allDepartures) {
+      for (const departure of departures) {
+        if (!departure.route?.stations || departure.route.stations.length < 2) {
+          continue;
+        }
+
+        // Get origin and destination stations
+        const originName = departure.route.stations[0].name;
+        const destName = departure.route.stations[departure.route.stations.length - 1].name;
+
+        // Find matching stations
+        const originStation = stations.find(s => 
+          s.name.toLowerCase().includes(originName.toLowerCase())
+        );
+        const destStation = stations.find(s =>
+          s.name.toLowerCase().includes(destName.toLowerCase())
+        );
+
+        if (!originStation || !destStation) continue;
+
+        const plannedDeparture = new Date(departure.plannedDepartureTime).getTime();
+        const actualDeparture = departure.actualDepartureTime
+          ? new Date(departure.actualDepartureTime).getTime()
+          : plannedDeparture;
+        
+        const plannedArrival = new Date(departure.plannedArrivalTime).getTime();
+        const actualArrival = departure.actualArrivalTime
+          ? new Date(departure.actualArrivalTime).getTime()
+          : plannedArrival;
+
+        const delay = calculateDelay(departure.plannedDepartureTime, departure.actualDepartureTime);
+        const now = Date.now();
+
+        // Calculate progress (0-1)
+        const totalDuration = plannedArrival - plannedDeparture;
+        const elapsedTime = Math.max(0, now - actualDeparture);
+        const progress = Math.min(1, totalDuration > 0 ? elapsedTime / totalDuration : 0);
+
+        routes.push({
+          id: `${departure.trainNumber}`,
+          trainId: departure.trainNumber || departure.id,
+          type: mapTrainType(departure.trainType),
+          from: originStation,
+          to: destStation,
+          departureTime: plannedDeparture,
+          arrivalTime: plannedArrival,
+          status: mapTrainStatus(departure.status, delay),
+          delay,
+          progress: Math.max(0, Math.min(1, progress)),
+          anomalies: [],
+          currentLat: originStation.lat + (destStation.lat - originStation.lat) * progress,
+          currentLng: originStation.lng + (destStation.lng - originStation.lng) * progress,
+        });
+      }
+    }
+
+    if (routes.length > 0) {
+      console.log(`✓ Loaded ${routes.length} live trains from NS API`);
+      return routes;
+    }
+    
+    // No data from API, use mock
+    console.log("ℹ Using mock train data (NS API returned no departures)");
+    return getMockTrainRoutes();
+  } catch (error) {
+    // Use mock data as fallback
+    console.log("ℹ Using mock train data (NS API unavailable)");
+    return getMockTrainRoutes();
+  }
+}
+
+/**
+ * Map NS train type string to TrainRoute type
+ */
+function mapTrainType(typeStr?: string): TrainRoute["type"] {
+  if (!typeStr) return "Sprinter";
+  
+  const lower = typeStr.toLowerCase();
+  if (lower.includes("intercity")) return "Intercity";
+  if (lower.includes("ice")) return "ICE";
+  if (lower.includes("thalys")) return "Thalys";
+  if (lower.includes("sprinter")) return "Sprinter";
+  
+  return "Sprinter"; // Default fallback
+}
+
+/**
+ * Map NS status to TrainRoute status
+ */
+function mapTrainStatus(
+  status: string | undefined,
+  delay: number
+): TrainRoute["status"] {
+  if (status === "CANCELLED") return "cancelled";
+  if (delay > 5) return "delayed";
+  if (delay > 0) return "running";
+  return "on_time";
 }
 
 // Rail connections for drawing lines on map
