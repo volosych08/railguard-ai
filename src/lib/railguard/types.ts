@@ -3,6 +3,31 @@ export interface RawSensorEvent {
   type: "camera" | "axle" | "switch" | "weight" | "vibration";
   value: boolean | number | string;
   sensorId?: string;
+  stationId?: string;
+}
+
+export interface Station {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  city: string;
+}
+
+export interface TrainRoute {
+  id: string;
+  trainId: string;
+  type: "Intercity" | "Sprinter" | "ICE" | "Thalys";
+  from: Station;
+  to: Station;
+  departureTime: number;
+  arrivalTime: number;
+  status: "on_time" | "delayed" | "cancelled" | "running";
+  delay: number; // minutes
+  currentLat?: number;
+  currentLng?: number;
+  progress: number; // 0-1
+  anomalies: string[];
 }
 
 export interface ReconstructedEvent {
@@ -12,6 +37,8 @@ export interface ReconstructedEvent {
   sources: string[];
   confidence: number;
   details: Record<string, unknown>;
+  routeId?: string;
+  stationId?: string;
 }
 
 export interface Anomaly {
@@ -24,6 +51,8 @@ export interface Anomaly {
   description: string;
   sensorData: Record<string, unknown>;
   aiExplanation?: string;
+  routeId?: string;
+  location?: string;
 }
 
 export interface SensorHealth {
@@ -32,4 +61,5 @@ export interface SensorHealth {
   reliability: number;
   lastActive: number;
   status: "online" | "degraded" | "offline";
+  stationId?: string;
 }

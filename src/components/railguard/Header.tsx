@@ -1,26 +1,30 @@
-import { Shield, Activity } from "lucide-react";
+import { Train, Activity, MapPin } from "lucide-react";
 
 export default function Header() {
   return (
-    <header className="border-b border-border bg-card/80 backdrop-blur-sm px-6 py-3 flex items-center justify-between">
+    <header className="glass border-b border-border px-6 py-3 flex items-center justify-between">
       <div className="flex items-center gap-3">
-        <div className="p-2 rounded-md bg-primary/10 border border-primary/20">
-          <Shield className="w-5 h-5 text-primary" />
+        <div className="p-2 rounded-xl bg-primary/10 glow-blue">
+          <Train className="w-5 h-5 text-primary" />
         </div>
         <div>
-          <h1 className="text-lg font-bold font-mono tracking-tight text-primary">
-            RAILGUARD AI
+          <h1 className="text-lg font-heading font-bold tracking-tight text-gradient">
+            RailGuard AI
           </h1>
-          <p className="text-xs text-muted-foreground">
-            Rail Yard Event Reconstruction & Anomaly Detection
+          <p className="text-xs text-muted-foreground flex items-center gap-1">
+            <MapPin className="w-3 h-3" />
+            Netherlands Railway Monitoring
           </p>
         </div>
       </div>
-      <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground">
-        <Activity className="w-3 h-3 text-success animate-pulse-glow" />
-        <span>SYSTEM ACTIVE</span>
-        <span className="text-border">|</span>
-        <span>{new Date().toLocaleDateString()}</span>
+      <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-success/10 border border-success/20">
+          <Activity className="w-3 h-3 text-success animate-pulse" />
+          <span className="text-xs font-medium text-success">Live</span>
+        </div>
+        <span className="text-xs text-muted-foreground">
+          {new Date().toLocaleString("nl-NL", { dateStyle: "medium", timeStyle: "short" })}
+        </span>
       </div>
     </header>
   );
